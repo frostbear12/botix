@@ -1,4 +1,4 @@
-# MuBot for Elite
+# MuBot
 
 Download the bot from : https://cloud.pprintgroup.com/s/t5Nz4ycs7eFA6Nk
 
