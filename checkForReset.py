@@ -3,22 +3,29 @@ import pyautogui
 import time
 import re  # Regular expressions
 import win32api, win32con
+from Helpers.checkIfStats import open_stat_screen
 
 def checkIfRes(levelRegion):
-    while True:
-        try:
-            time.sleep(60)  # Wait for one minute before checking the level again
+        while True:
+                try:
+                    time.sleep(60)  # Wait for one minute before checking the level again
 
-            current_level = readLevels(levelRegion)
-            if current_level.isdigit() and int(current_level) >= 400:
-                print(f"Reached level {current_level}, executing warp command.")
-                send_reset_command()
-                break
-            else:
-                print(f"Current level {current_level}, waiting for level 400.")
-        except Exception as e:
-            print(f"An error occurred: {e}. Restarting the check...")
-            continue  # Continue the while loop, hence restarting the check
+                    current_level = readLevels(levelRegion)
+                    if current_level == "0":
+                        print("Failed to read level. Attempting to open stat screen...")
+                        if not open_stat_screen("RESET CHECKER"):
+                            print("Failed to open stat screen. Retrying level read after delay.")
+                            continue  # Skip the rest of this loop iteration
+
+                    if current_level.isdigit() and int(current_level) >= 400:
+                        print(f"Reached level {current_level}, executing warp command.")
+                        send_reset_command()
+                        break
+                    else:
+                        print(f"Current level {current_level}, waiting for level 400.")
+                except Exception as e:
+                    print(f"An error occurred: {e}. Restarting the check...")
+                    continue  # Continue the while loop, hence restarting the check
 
 def readLevels(levelRegion):
 

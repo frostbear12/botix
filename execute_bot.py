@@ -27,13 +27,30 @@ script_running = False
 paused = False
 script_thread = None
 
+pause_event = threading.Event()
+pause_event.set()  # Initially set the event to allow the script to run
+
 # Initialize pygame mixer
 pygame.mixer.init()
+
 
 # screen reading coords
 locationCoords = (132, 36, 135, 25) # (left, top, width, height)
 # levelCoords = (1400, 140, 150, 35) # (left, top, width, height)
-levelCoords = (1400, 145, 110, 33) # (left, top, width, height)
+levelCoords = (1400, 145, 130, 33) # (left, top, width, height)
+
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # Base path for bundled application
+        base_path = sys._MEIPASS
+    except Exception:
+        # Base path for normal execution
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+
 
 def on_drag_start(event):
     overlay = event.widget.winfo_toplevel()
@@ -46,6 +63,9 @@ def update_coordinates_label():
     level_label.config(text=f"Level: {overlay2.winfo_x()}, {overlay2.winfo_y()}")
 
 def on_drag_motion(event):
+    global locationCoords
+    global levelCoords
+
     overlay = event.widget.winfo_toplevel()
     x = event.x_root - overlay._drag_start_x
     y = event.y_root - overlay._drag_start_y
@@ -56,22 +76,31 @@ def on_drag_motion(event):
     overlay._drag_start_y = event.y_root
     update_coordinates_label()
 
-def create_overlay(root, region, color="green", border_width=5):
+    # Update the global coordinates based on which overlay is being moved
+    if overlay == overlay1:
+        locationCoords = (new_x, new_y, locationCoords[2], locationCoords[3])
+    elif overlay == overlay2:
+        levelCoords = (new_x, new_y, levelCoords[2], levelCoords[3])
+
+def create_overlay(root, region, color="green", border_width=5, handle_size=10):
     overlay = tk.Toplevel(root)
     overlay.attributes("-topmost", True)
     overlay.attributes("-transparentcolor", "white")
     overlay.overrideredirect(True)
-    overlay.configure(cursor="fleur")  # Correct way to set cursor style
+    overlay.configure(cursor="fleur")
 
     # Create a Canvas for the overlay
     canvas = tk.Canvas(overlay, bg="white", width=region[2], height=region[3], highlightthickness=0)
     canvas.pack()
 
     # Draw border lines
-    canvas.create_line(0, 0, region[2], 0, fill=color, width=border_width)  # Top
-    canvas.create_line(0, 0, 0, region[3], fill=color, width=border_width)  # Left
-    canvas.create_line(region[2], 0, region[2], region[3], fill=color, width=border_width)  # Right
-    canvas.create_line(0, region[3], region[2], region[3], fill=color, width=border_width)  # Bottom
+    canvas.create_line(0, 0, region[2], 0, fill=color, width=border_width)
+    canvas.create_line(0, 0, 0, region[3], fill=color, width=border_width)
+    canvas.create_line(region[2], 0, region[2], region[3], fill=color, width=border_width)
+    canvas.create_line(0, region[3], region[2], region[3], fill=color, width=border_width)
+
+    # Create a draggable handle
+    canvas.create_rectangle(0, 0, handle_size, handle_size, fill=color)
 
     # Position the overlay
     overlay.geometry(f"+{region[0]}+{region[1]}")
@@ -86,11 +115,8 @@ def create_overlay(root, region, color="green", border_width=5):
 
 
 def setup_tesseract():
-    # Check if the script is running as a PyInstaller bundle
-    if getattr(sys, 'frozen', False):
-        basedir = sys._MEIPASS  # This is the temporary directory for PyInstaller
-    else:
-        basedir = os.path.dirname(os.path.abspath(__file__))
+    # Path to the root directory where the script is located
+    basedir = os.path.dirname(os.path.abspath(__file__))
 
     # Construct the path to the Tesseract executable
     tesseract_cmd = os.path.join(basedir, 'Tesseract-OCR', 'tesseract.exe')
@@ -124,6 +150,22 @@ class TextRedirector(object):
     def flush(self):
         pass
 
+def update_log(message):
+    log_text.config(state='normal')
+    log_text.insert(tk.END, message + '\n')
+    log_text.see(tk.END)
+    log_text.config(state='disabled')
+
+def start_move_window():
+    def update_messages():
+        def callback(message):
+            root.after(0, lambda: update_log(message))
+
+        move_window(callback)
+
+    threading.Thread(target=update_messages, daemon=True).start()
+
+
 # GUI Functions
 def update_log(message):
     log_text.config(state='normal')
@@ -154,89 +196,134 @@ def send_keys(string):
         time.sleep(0.05)
 
 def pause_resume_script():
-    global paused
-    paused = not paused
-    update_log(f"Script {'paused' if paused else 'resumed'}.")
+    global pause_event
+    if pause_event.is_set():
+        pause_event.clear()
+        update_log("Script paused.")
+        pause_button.config(text="Resume")
+    else:
+        pause_event.set()
+        update_log("Script resumed.")
+        pause_button.config(text="Pause")
 
-def pause_resume_script():
-    global paused
-    paused = not paused
-    print(f"Script {'paused' if paused else 'resumed'}.")
+# Register the hotkey
+keyboard.add_hotkey('-', pause_resume_script)
 
+def restart_script():
+    global script_running, script_thread
+    if script_running:
+        # Stop the script
+        script_running = False
+        # Wait for the script to stop
+        if script_thread.is_alive():
+            script_thread.join(timeout=5)
+        # Now start the script again
+        script_running = True
+        script_thread = threading.Thread(target=run_scripts)
+        script_thread.start()
+        update_log("Script restarted.")
+        
 def run_scripts():
-    global paused, script_running
-    update_log("Script started running.")
-    while script_running:
-        if paused:
-            time.sleep(1)
-            continue
+    global script_running
+    update_log("Preparing to start the script...")
 
-        try:
-            selectedClassFromBox = selected_class.get()  # Get the selected class from the dropdown
-            userInputGrandResets = grand_resets_entry.get()  # Get user input for grand resets
-
-            # Try to convert the grand resets input to an integer
-            try:
-                grandResets = int(userInputGrandResets)
-            except ValueError:
-                # If conversion fails, log an error and use a default value (e.g., 0)
-                update_log("Invalid grand resets input. Using default value 0.")
-                grandResets = 0
-
-            update_log("Running scripts...")
-            # Your script functionality
-
-            # Small pause
-            time.sleep(1)
-
-
-            # Runs the stat adder
-            run_stat_adder(selectedClassFromBox, grandResets, levelCoords)
-
-            # Runs the bot itself for lorencia sequence
-            runBot(locationCoords)
-
-            # Runs the bot for dungeon sequence
-            runDungeon(locationCoords, levelCoords)
-
-            # Waits until it can get to spot with marry track
-            waitForMarryTrack(levelCoords)
-
-            # Checks if there is a reset
-            checkIfRes(levelCoords)
-
-        except Exception as e:
-            update_log(f"An error occurred: {e}. Executing safe exit...")
-            safe_exit_sequence()
-            time.sleep(5)  # Wait some time before restarting
-            continue  # Restart the loop after the safe exit sequence
-
+    # 3-second countdown
+    for i in range(3, 0, -1):
+        if not script_running:
+            break
+        update_log(f"Starting in {i}...")
         time.sleep(1)
+
+    current_phase = selected_phase.get()
+
+    try:
+        selectedClassFromBox = selected_class.get()
+        userInputGrandResets = grand_resets_entry.get()
+
+        # Convert grand resets input to an integer
+        try:
+            grandResets = int(userInputGrandResets)
+        except ValueError:
+            update_log("Invalid grand resets input. Using default value 0.")
+            grandResets = 0
+
+        while script_running:
+            pause_event.wait()  # Wait here if the script is paused
+
+            if current_phase in ["Start", "Stat Adder"]:
+                run_stat_adder(selectedClassFromBox, grandResets, levelCoords)
+                pause_event.wait()
+                if not script_running:
+                    break
+
+            if current_phase in ["Start", "Stat Adder", "Run Lorencia"]:
+                runBot(locationCoords)
+                pause_event.wait()
+                if not script_running:
+                    break
+
+            if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon"]:
+                runDungeon(locationCoords, levelCoords)
+                pause_event.wait()
+                if not script_running:
+                    break
+
+            if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon", "Marry Track"]:
+                waitForMarryTrack(levelCoords)
+                pause_event.wait()
+                if not script_running:
+                    break
+
+            if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon", "Marry Track", "Check Reset"]:
+                checkIfRes(levelCoords)
+                pause_event.wait()
+                if not script_running:
+                    break
+
+    except Exception as e:
+        update_log(f"An error occurred: {e}. Executing safe exit...")
+        safe_exit_sequence()
 
     update_log("Script stopped running.")
 
+
+
 def start_stop_script():
     global script_running, script_thread
-    if not script_running:
+    if script_running:
+        # Stop the script if it's running
+        script_running = False
+        if script_thread.is_alive():
+            # Wait for the script to stop gracefully
+            script_thread.join(timeout=5)
+            if not script_thread.is_alive():
+                update_log("Script stopped successfully.")
+        start_stop_button.config(text="Start Script")
+    else:
+        # Start the script
         script_running = True
         script_thread = threading.Thread(target=run_scripts)
         script_thread.start()
         start_stop_button.config(text="Stop Script")
         update_log("Script started.")
         play_start_sound()  # Play sound when the script starts
-    else:
-        script_running = False
-        if script_thread.is_alive():
-            # Give some time for the script to stop gracefully
-            script_thread.join(timeout=5)
-            if script_thread.is_alive():
-                # If the script is still running, force stop
-                update_log("Failed to stop script gracefully, forcing stop...")
-                os.kill(os.getpid(), signal.SIGTERM)
-            else:
-                update_log("Script stopped successfully.")
-                release_all_mouse_clicks()  # Release mouse clicks when the script stops
-        start_stop_button.config(text="Start Script")
+
+def check_pause():
+    """Check if the script should remain paused."""
+    global paused
+    for _ in range(10):  # Check 10 times with 0.1 second delay each
+        if not paused:
+            break
+        time.sleep(0.1)
+
+def check_running():
+    """Check if the script should continue running."""
+    global script_running
+    for _ in range(50):  # Check 50 times with 0.1 second delay each
+        if not script_running:
+            break
+        time.sleep(0.1)
+
 
 def release_all_mouse_clicks():
     win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
@@ -248,7 +335,7 @@ def on_hotkey_pressed():
     update_log("Hotkey pressed, attempting to stop script gracefully...")
     script_running = False
     if script_thread.is_alive():
-        script_thread.join(timeout=3)  # Wait for max 3 seconds for the script thread to finish
+        script_thread.join(timeout=1)  # Wait for max 1 seconds for the script thread to finish
 
     if script_thread.is_alive():
         # If the script is still running after 3 seconds, force stop
@@ -261,41 +348,97 @@ def on_hotkey_pressed():
 keyboard.add_hotkey('*', on_hotkey_pressed)
 
 
-keyboard.add_hotkey('*', on_hotkey_pressed)
+def on_closing():
+    global script_running, script_thread
+    script_running = False
+    if script_thread and script_thread.is_alive():
+        script_thread.join()  # Ensure the thread is stopped before destroying the root
+    root.destroy()
+
+
 
 
 # GUI Setup
 root = tk.Tk()
 root.title("SUPER SEXUAL BOT")
-root.geometry("400x400")
+
+# Handling window close event
+try:
+    root.iconbitmap("bot.ico")  # Or the path to your icon file
+except tk.TclError:
+    pass
+
+
+# Set the window icon
+root.geometry("600x400")
 root.attributes("-topmost", True)  # Keep the main window always on top
 
-# Center Window Button
-center_window_button = tk.Button(root, text="Center Window", command=move_window)
-center_window_button.pack()
+# Set the window icon, attempting to load from root folder first
+icon_path = resource_path('bot.ico')
+root.iconbitmap(icon_path)
 
+
+
+# Frame for class selection
+class_selection_frame = tk.Frame(root)
+class_selection_frame.pack(pady=5)  # Adjust padding as needed
 
 # Class Selection Dropdown
-class_label = tk.Label(root, text="Select class:")
-class_label.pack()
+class_label = tk.Label(class_selection_frame, text="Select class:")
+class_label.pack(side=tk.LEFT, padx=5)  # Adjust side and padding as needed
 class_options = ["BK", "SM", "ELF", "SUM", "DL", "RF", "MG"]
 selected_class = tk.StringVar()
-class_dropdown = tk.OptionMenu(root, selected_class, *class_options)
-class_dropdown.pack()
+class_dropdown = tk.OptionMenu(class_selection_frame, selected_class, *class_options)
+class_dropdown.pack(side=tk.LEFT)
+
+# Frame for grand resets input
+grand_resets_frame = tk.Frame(root)
+grand_resets_frame.pack(pady=5)  # Adjust padding as needed
 
 # Grand Resets Input
-grand_resets_label = tk.Label(root, text="Grand Resets:")
-grand_resets_label.pack()
-grand_resets_entry = tk.Entry(root)
-grand_resets_entry.pack()
+grand_resets_label = tk.Label(grand_resets_frame, text="Grand Resets:")
+grand_resets_label.pack(side=tk.LEFT, padx=5)  # Adjust side and padding as needed
+grand_resets_entry = tk.Entry(grand_resets_frame)
+grand_resets_entry.pack(side=tk.LEFT)
+
+# Define your phases
+phases = ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon", "Marry Track", "Check Reset"]
+
+# Frame for the phase selection dropdown
+phase_selection_frame = tk.Frame(root)
+phase_selection_frame.pack(pady=5)  # Adjust padding as needed
+
+# Label for the phase selection dropdown
+phase_label = tk.Label(phase_selection_frame, text="Select Phase:")
+phase_label.pack(side=tk.LEFT, padx=5)  # Adjust side and padding as needed
+
+# Dropdown for phase selection
+selected_phase = tk.StringVar()
+selected_phase.set(phases[0])  # default value
+phase_dropdown = tk.OptionMenu(phase_selection_frame, selected_phase, *phases)
+phase_dropdown.pack(side=tk.LEFT)
+
+
+# Frame for buttons
+button_frame = tk.Frame(root)
+button_frame.pack(pady=10)  # Add some vertical padding
+
+# Center Window Button
+center_window_button = tk.Button(button_frame, text="Center Window", command=start_move_window)
+center_window_button.pack(side=tk.LEFT, padx=5)
+
 
 # Start/Stop Button
-start_stop_button = tk.Button(root, text="Start Script", command=start_stop_script)
-start_stop_button.pack()
+start_stop_button = tk.Button(button_frame, text="Start Script", command=start_stop_script)
+start_stop_button.pack(side=tk.LEFT, padx=5)
+
+# Restart Button
+restart_button = tk.Button(button_frame, text="Restart", command=restart_script)
+restart_button.pack(side=tk.LEFT, padx=5)
 
 # Pause Button
-# pause_button = tk.Button(root, text="Pause/Resume Script", command=pause_resume_script)
-# pause_button.pack()
+pause_button = tk.Button(button_frame, text="Pause", command=pause_resume_script)
+pause_button.pack(side=tk.LEFT, padx=5)
 
 
 # Log Text Area
@@ -314,5 +457,8 @@ level_label.pack()
 # Create overlays as part of the main application
 overlay1 = create_overlay(root, locationCoords)
 overlay2 = create_overlay(root, levelCoords)
+
+# Setup the closing protocol
+root.protocol("WM_DELETE_WINDOW", on_closing)
 
 root.mainloop()

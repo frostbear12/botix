@@ -196,6 +196,10 @@ def runBot(region_of_interest):
                         click_at(1055, 598, wait=0.2)  # Perform a left-click at (1055, 598) with a 0.2 second wait
                         print("Performed a left-click at (1055, 598)")
 
+                        # CLICK HERE ONCE LEFT
+                        click_at(1055, 598, wait=0.2)  # Perform a left-click at (1055, 598) with a 0.2 second wait
+                        print("Performed a left-click at (588, 547)")
+
                         last_change_time = time.time()  # Reset the timer
 
                 if not is_clicking:

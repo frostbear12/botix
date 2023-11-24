@@ -4,6 +4,9 @@ import pytesseract
 import pyautogui
 import re
 import time
+from Helpers.checkIfStats import open_stat_screen  # Import the function
+from Helpers.checkIfEnter import open_enter_window_if_closed, is_enter_window_open
+
 
 def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
     def move_and_click(x, y):
@@ -33,12 +36,40 @@ def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
             time.sleep(0.05)  # Delay between each key press
 
     def add_stats(stat_type, points):
-        command = f"/{stat_type} {points}"
+
+
+        # Create command
+        command = f"/{stat_type} {points}" if stat_type != "com" else f"/cmd {points}"
+
+        # Send command
         send_key_event(win32con.VK_RETURN)  # Press Enter
         time.sleep(0.5)
+        # Check if the enter window is open and open it if not
+        if not open_enter_window_if_closed():
+            print("Failed to open Enter window. Aborting add_stats.")
+            return False
         send_keys(command)
-        send_key_event(win32con.VK_RETURN)  # Press Enter
+        send_key_event(win32con.VK_RETURN)  # Press Enter again
         time.sleep(1)
+
+        # Check if the enter window is closed after sending the command
+        if is_enter_window_open():
+            print("Enter window did not close. There might be an issue.")
+            return False
+        else:
+            print("Enter window closed successfully.")
+            return True
+
+    def safe_exit_sequence():
+        print("Teleporting to Lorencia for a safe restart...")
+        send_key_event(win32con.VK_RETURN)  # Press Enter
+        time.sleep(0.1)
+        send_key_event(win32con.VK_RETURN, key_up=True)  # Release Enter
+        send_keys("/warp lorencia")
+        send_key_event(win32con.VK_RETURN)  # Press Enter
+        time.sleep(0.1)
+        send_key_event(win32con.VK_RETURN, key_up=True)  # Release Enter
+        time.sleep(3)  # Wait for the warp action to complete
 
     def read_resets_from_screen(region):
         screenshot = pyautogui.screenshot(region=region)
@@ -51,15 +82,16 @@ def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
         else:
             return "Resets not found"
 
-    def read_resets_with_retries(region, max_attempts=3):
+    def read_resets_with_retries(region, max_attempts=5):
         attempts = 0
         while attempts < max_attempts:
+            time.sleep(1)  # 4-second wait before each attempt
             resets = read_resets_from_screen(region)
             if isinstance(resets, int):
                 return resets  # Successfully read resets
             print(f"Attempt {attempts + 1}/{max_attempts} failed to read resets. Retrying...")
             attempts += 1
-            time.sleep(1)  # Wait a bit before retrying
+
         return "Resets not found"  # Return this if all attempts fail
 
     def calculate_available_stats(resets, selectedClass, grandResets):
@@ -93,17 +125,38 @@ def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
             agility = int(0.4 * remaining)
             energy = int(0.6 * remaining)
             return {"str": strength, "vit": vitality, "agi": agility, "ene": energy}
+        
+        # Dark Lord (DL)
+        elif selectedClass == "DL":
+            com = 400  # Fixed value for Command
+            energy = 1000  # Fixed value for Energy
+            vitality = 1300  # Fixed value for Vitality
+            remaining = availableStats - (com + energy + vitality)
+            agility = int(0.35 * remaining)
+            strength = int(0.65 * remaining)
+            return {"com": com, "ene": energy, "vit": vitality, "agi": agility, "str": strength}
 
         # If the class is not one of the above, distribute stats evenly
         else:
             stat_value = int(availableStats / 4)  # Divide the available stats evenly
             return {"str": stat_value, "vit": stat_value, "agi": stat_value, "ene": stat_value}
    
+    time.sleep(2)
+
     # Move mouse and click at specified position before starting the reset checks
-    move_and_click(1600, 1055)
+    move_and_click(1600, 1055) # stats button
+    
 
     # Wait 2 seconds
     time.sleep(2)
+
+    # Attempt to open the stat screen
+    if not open_stat_screen("STAT ADDER"):
+        print("Failed to open stat screen on first attempt. Proceeding with a delay...")
+        time.sleep(10)  # Wait for some time before proceeding, hoping the screen opens
+
+
+
 
     # Use the read_resets_with_retries function
     resets = read_resets_with_retries(resetRegion)
@@ -118,7 +171,10 @@ def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
         print("Finished adding stats.")
 
     else:
-        print("Resets:", resets)
+        print("Failed to read resets. Teleporting to Lorencia and retrying...")
+        safe_exit_sequence()  # Teleport to Lorencia
+        time.sleep(10)  # Wait for some time before retrying
+        run_stat_adder(selectedClassFromBox, grandResets, resetRegion)  # Restart the stat adder
 
     # Move mouse and click again after adding stats
     move_and_click(1600, 1055)

@@ -3,7 +3,9 @@ import pyautogui
 import time
 import re  # Regular expressions
 import win32api, win32con
-import win32com.client  # For sending keystrokes
+from Helpers.checkIfStats import open_stat_screen
+from Helpers.checkIfEnter import open_enter_window_if_closed, is_enter_window_open
+
 
 
 
@@ -104,13 +106,26 @@ def waitForMarryTrack(levelRegion):
         win32api.keybd_event(key_code, 0, win32con.KEYEVENTF_KEYUP, 0)
 
     def send_warp_command():
+
+
         send_key_event(win32con.VK_RETURN)  # Press Enter
         time.sleep(0.5)
+
+        # Ensure the Enter window is open before typing
+        if not is_enter_window_open():
+            open_enter_window_if_closed()
         
-        # Type "marry track"
+        # Type "/marry track"
         for char in "/marry track":
+            if char == '/':
+                # For special characters like '/', Shift needs to be held down
+                send_key_event(win32con.VK_SHIFT)
             vk_code = win32api.VkKeyScan(char)
             send_key_event(vk_code & 0xFF)  # VkKeyScan returns a tuple
+            
+            if char == '/':
+                # Release Shift after typing '/'
+                send_key_event(win32con.VK_SHIFT)
         time.sleep(0.5)
         
         send_key_event(win32con.VK_RETURN)  # Press Enter again
@@ -120,20 +135,33 @@ def waitForMarryTrack(levelRegion):
 
         send_key_event(win32con.VK_RETURN)  # Press Enter again
 
-        # wait for 4 second
+        # wait for 4 seconds
         time.sleep(4)
 
-        # Now call moveToSpotAndNavigate right after sending the command
+        # Verify that the Enter window is closed
+        if is_enter_window_open():
+            print("Enter window did not close as expected.")
+        else:
+            print("Enter window closed successfully.")
+
+        # Now call startHelper right after sending the command
         startHelper()
 
     # The loop now indefinitely checks for the level
     while True:
         current_level = readLevels()
+        if current_level == "0":
+            print("Failed to read level. Attempting to open stat screen...")
+            if not open_stat_screen("MARRY TRACKER"):
+                print("Failed to open stat screen. Retrying level read after delay.")
+                time.sleep(5)  # Delay to prevent spamming before retrying
+                continue  # Skip the rest of this loop iteration
+
         if current_level.isdigit() and int(current_level) >= 150:
             print(f"Reached level {current_level}, executing warp command.")
             send_warp_command()
             break  # Break the loop after sending the warp command
         else:
-            print(f"Current level {current_level}, waiting for level 322.")
+            print(f"Current level {current_level}, waiting for level 150.")
         time.sleep(5)  # Delay to prevent spamming
         

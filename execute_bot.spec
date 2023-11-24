@@ -5,7 +5,7 @@ a = Analysis(
     ['execute_bot.py'],
     pathex=[],
     binaries=[],
-    datas=[('Tesseract-OCR', 'Tesseract-OCR')],
+    datas=[('bot.ico', '.'), ('Helpers', 'Helpers')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -31,7 +31,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['bot.ico'],
+    icon=['assets\\bot.ico','bot.ico'],
 )
 coll = COLLECT(
     exe,

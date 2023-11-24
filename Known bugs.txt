@@ -1,0 +1,19 @@
+# Create a double check for resets.
+ - before reseting, press "C" to disable the window.
+	- Execute the reset
+	- Before exiting the reset:
+		- open "c" 
+		- check if level is "1"
+			if not, then, run the "reset" script again without the "start helper"
+
+# Check the coordinates of the dungeon2
+	- if the coordinates are 231, then stop faster
+
+# Make a check that the "C" window  is open
+- fixed
+
+# Make sure that "Enter" is actually pressed, before starting to type (add stats, move to dungeon, marry track)
+- fixed
+
+# On lorencia monster hunt if too far 186+ , then move back a bit
+

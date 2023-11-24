@@ -3,7 +3,9 @@ import pyautogui
 import time
 import re  # Regular expressions
 import win32api, win32con
-import win32com.client  # For sending keystrokes
+from Helpers.checkIfStats import open_stat_screen  # Import the function
+from Helpers.checkIfEnter import open_enter_window_if_closed, is_enter_window_open
+
 
 
 
@@ -146,8 +148,15 @@ def runDungeon(coordinateRegion, levelRegion):
         win32api.keybd_event(key_code, 0, win32con.KEYEVENTF_KEYUP, 0)
 
     def send_warp_command():
+        print("Sleep : 1 second")
+        time.sleep(1)
+
         send_key_event(win32con.VK_RETURN)  # Press Enter
         time.sleep(0.5)
+
+        # Ensure the Enter window is open before typing
+        if not is_enter_window_open():
+            open_enter_window_if_closed()
         
         # Type "/warp dungeon2"
         for char in "/warp dungeon2":
@@ -163,74 +172,67 @@ def runDungeon(coordinateRegion, levelRegion):
         time.sleep(0.5)
         
         send_key_event(win32con.VK_RETURN)  # Press Enter again
+        time.sleep(0.5)
 
-        # Now call moveToSpot right after sending the warp command
-        moveToSpotAndNavigate()
+        # Verify that the Enter window is closed
+        if is_enter_window_open():
+            print("Enter window did not close as expected.")
+        else:
+            print("Enter window closed successfully.")
 
-    def press_c_key():
-        # Press "C" with a more deliberate action
-        win32api.keybd_event(0x43, 0, 0, 0)  # Key down 'C'
-        time.sleep(0.2)  # Longer delay for key down
-        win32api.keybd_event(0x43, 0, win32con.KEYEVENTF_KEYUP, 0)  # Key up 'C'
-        time.sleep(0.5)  # Delay after key press
+
 
     def moveToSpotAndNavigate():
-        global helperStarted  # Reference the global variable within this function
-        centerMouseAndWait()  # Center the mouse cursor and wait
+        global helperStarted
+        centerMouseAndWait()
         x_coord, y_coord = None, None
 
-        while x_coord != 232:
+        # Check for X coordinate and warp if necessary
+        while True:
             coordinates = read_coordinates_from_screen(coordinateRegion)
             print("Extracted coordinates:", coordinates)
-
             if coordinates != "Coordinates not found":
                 x_coord, y_coord = coordinates
 
                 if x_coord == 233:
                     send_warp_command()
-                    time.sleep(5)
+                    time.sleep(2)
                     centerMouseAndWait()
-
                 elif x_coord in [232, 231]:
-                    print("Correct position reached, executing startHelper.")
-                    startHelper()
-                    helperStarted = True
+                    print("Correct position reached, preparing to move.")
                     break
+                else:
+                    print("Waiting to reach correct X coordinate...")
             else:
                 print("Failed to read coordinates")
             time.sleep(0.5)
 
-        # Wait for 0.5 seconds, center mouse cursor
-        time.sleep(0.5)
+        # Center mouse cursor
         centerMouseAndWait()
 
-        # Click and hold left click on target 1399, 878
+        # Click and hold to move
         click_and_hold(756, 590)
 
-        # Move character until it reaches Y coords of 110, 109, 108, 107, 106, or 105
+        # Move character until reaching target Y coordinate
         while not y_coord in [113, 112, 110, 109, 108, 107, 106, 105]:
             coordinates = read_coordinates_from_screen(coordinateRegion)
             print("Extracted coordinates during movement:", coordinates)
             if coordinates != "Coordinates not found":
                 _, y_coord = coordinates
+            else:
+                print("Waiting to reach target Y coordinate...")
             time.sleep(0.5)
 
         # Release click
         release_click()
 
-        # After completing movement:
-        if not helperStarted:  # Check if startHelper has not been executed
-            print("Target Y coordinate reached, executing startHelper.")
+        # Start helper if not already started
+        if not helperStarted:
+            print("Target coordinates reached, executing startHelper.")
             startHelper()
-            helperStarted = True  # Mark helper as started
+            helperStarted = True
 
-        time.sleep(0.5)
-        
-
-        print("Target Y coordinate reached, executing startHelper.")
-
-        # Execute startHelper function
-        startHelper()
+        print("Movement completed.")
 
 
     def press_c_key_alternative():
@@ -255,28 +257,32 @@ def runDungeon(coordinateRegion, levelRegion):
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
         # Wait for 2 seconds before the script starts
+    print("Sleep : 2 second")
     time.sleep(2)
 
 
 
     # Main loop of the function
-
     while True:
         current_level = readLevels()
+        
+        if current_level == "0":
+            print("Failed to read level. Attempting to open stat screen...")
+            if not open_stat_screen("DUNGEON TRACKER"):
+                print("Failed to open stat screen. Retrying level read after delay.")
+                time.sleep(5)  # Delay before retrying
+                continue  # Skip the rest of this loop iteration
+
         if current_level.isdigit() and int(current_level) >= 40:
+            print(f"Reached level {current_level}, executing warp command.")
             send_warp_command()
+            time.sleep(2)
+            moveToSpotAndNavigate()
             break
-
-        coordinates = read_coordinates_from_screen(coordinateRegion)
-        if coordinates != "Coordinates not found":
-            x_coord, y_coord = coordinates
-
-            if (x_coord in [232, 231]) and not helperStarted:
-                moveToSpotAndNavigate()
-                if helperStarted:  # If startHelper was executed, exit the loop
-                    break
         else:
             print(f"Current level {current_level}, waiting for level 40.")
-        time.sleep(5)
+        time.sleep(5)  # Delay to prevent spamming
 
     print("Dungeon run completed.")
+
+
