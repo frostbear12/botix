@@ -113,7 +113,6 @@ def create_overlay(root, region, color="green", border_width=5, handle_size=10):
 
 
 
-
 def setup_tesseract():
     # Path to the root directory where the script is located
     basedir = os.path.dirname(os.path.abspath(__file__))
@@ -195,37 +194,10 @@ def send_keys(string):
         send_key_event(vk_code)
         time.sleep(0.05)
 
-def pause_resume_script():
-    global pause_event
-    if pause_event.is_set():
-        pause_event.clear()
-        update_log("Script paused.")
-        pause_button.config(text="Resume")
-    else:
-        pause_event.set()
-        update_log("Script resumed.")
-        pause_button.config(text="Pause")
 
-# Register the hotkey
-keyboard.add_hotkey('-', pause_resume_script)
-
-def restart_script():
-    global script_running, script_thread
-    if script_running:
-        # Stop the script
-        script_running = False
-        # Wait for the script to stop
-        if script_thread.is_alive():
-            script_thread.join(timeout=5)
-        # Now start the script again
-        script_running = True
-        script_thread = threading.Thread(target=run_scripts)
-        script_thread.start()
-        update_log("Script restarted.")
         
 def run_scripts():
     global script_running
-    update_log("Preparing to start the script...")
 
     # 3-second countdown
     for i in range(3, 0, -1):
@@ -234,87 +206,50 @@ def run_scripts():
         update_log(f"Starting in {i}...")
         time.sleep(1)
 
-    current_phase = selected_phase.get()
+    # Main script loop
+    while script_running:
+        current_phase = selected_phase.get()
 
-    try:
         selectedClassFromBox = selected_class.get()
         userInputGrandResets = grand_resets_entry.get()
-
-        # Convert grand resets input to an integer
         try:
             grandResets = int(userInputGrandResets)
         except ValueError:
-            update_log("Invalid grand resets input. Using default value 0.")
             grandResets = 0
 
-        while script_running:
-            pause_event.wait()  # Wait here if the script is paused
+        if current_phase in ["Start", "Stat Adder"]:
+            run_stat_adder(selectedClassFromBox, grandResets, levelCoords)
 
-            if current_phase in ["Start", "Stat Adder"]:
-                run_stat_adder(selectedClassFromBox, grandResets, levelCoords)
-                pause_event.wait()
-                if not script_running:
-                    break
+        if current_phase in ["Start", "Stat Adder", "Run Lorencia"]:
+            runBot(locationCoords)
 
-            if current_phase in ["Start", "Stat Adder", "Run Lorencia"]:
-                runBot(locationCoords)
-                pause_event.wait()
-                if not script_running:
-                    break
+        if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon"]:
+            runDungeon(locationCoords, levelCoords)
 
-            if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon"]:
-                runDungeon(locationCoords, levelCoords)
-                pause_event.wait()
-                if not script_running:
-                    break
+        if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon", "Marry Track"]:
+            waitForMarryTrack(levelCoords)
 
-            if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon", "Marry Track"]:
-                waitForMarryTrack(levelCoords)
-                pause_event.wait()
-                if not script_running:
-                    break
+        if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon", "Marry Track", "Check Reset"]:
+            checkIfRes(levelCoords)
 
-            if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon", "Marry Track", "Check Reset"]:
-                checkIfRes(levelCoords)
-                pause_event.wait()
-                if not script_running:
-                    break
-
-    except Exception as e:
-        update_log(f"An error occurred: {e}. Executing safe exit...")
-        safe_exit_sequence()
-
-    update_log("Script stopped running.")
+        # Small delay to prevent CPU overuse, adjust as needed
+        time.sleep(0.1)
 
 
 
 def start_stop_script():
     global script_running, script_thread
     if script_running:
-        # Stop the script if it's running
         script_running = False
-        if script_thread.is_alive():
-            # Wait for the script to stop gracefully
-            script_thread.join(timeout=5)
-            if not script_thread.is_alive():
-                update_log("Script stopped successfully.")
+        if script_thread and script_thread.is_alive():
+            script_thread.join()
         start_stop_button.config(text="Start Script")
     else:
-        # Start the script
         script_running = True
         script_thread = threading.Thread(target=run_scripts)
         script_thread.start()
         start_stop_button.config(text="Stop Script")
-        update_log("Script started.")
-        play_start_sound()  # Play sound when the script starts
 
-def check_pause():
-    """Check if the script should remain paused."""
-    global paused
-    for _ in range(10):  # Check 10 times with 0.1 second delay each
-        if not paused:
-            break
-        time.sleep(0.1)
 
 def check_running():
     """Check if the script should continue running."""
@@ -357,25 +292,21 @@ def on_closing():
 
 
 
-
 # GUI Setup
+# Set the window icon
 root = tk.Tk()
 root.title("SUPER SEXUAL BOT")
+root.geometry("600x400")
+root.attributes("-topmost", True)
+
+icon_path = resource_path('bot.ico')
+root.iconbitmap(icon_path)
 
 # Handling window close event
 try:
     root.iconbitmap("bot.ico")  # Or the path to your icon file
 except tk.TclError:
     pass
-
-
-# Set the window icon
-root.geometry("600x400")
-root.attributes("-topmost", True)  # Keep the main window always on top
-
-# Set the window icon, attempting to load from root folder first
-icon_path = resource_path('bot.ico')
-root.iconbitmap(icon_path)
 
 
 
@@ -431,14 +362,6 @@ center_window_button.pack(side=tk.LEFT, padx=5)
 # Start/Stop Button
 start_stop_button = tk.Button(button_frame, text="Start Script", command=start_stop_script)
 start_stop_button.pack(side=tk.LEFT, padx=5)
-
-# Restart Button
-restart_button = tk.Button(button_frame, text="Restart", command=restart_script)
-restart_button.pack(side=tk.LEFT, padx=5)
-
-# Pause Button
-pause_button = tk.Button(button_frame, text="Pause", command=pause_resume_script)
-pause_button.pack(side=tk.LEFT, padx=5)
 
 
 # Log Text Area

@@ -126,6 +126,15 @@ def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
             energy = int(0.6 * remaining)
             return {"str": strength, "vit": vitality, "agi": agility, "ene": energy}
         
+        # Magic Gladiator (MG)
+        elif selectedClass == "RF":
+            strength = 400
+            vitality = 1000
+            energy = 450
+            remaining = availableStats - (strength + vitality + energy)
+            agility = int(1 * remaining)
+            return {"str": strength, "vit": vitality, "agi": agility, "ene": energy}
+        
         # Dark Lord (DL)
         elif selectedClass == "DL":
             com = 400  # Fixed value for Command
