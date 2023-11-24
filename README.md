@@ -8,8 +8,9 @@ Download the bot from : https://cloud.pprintgroup.com/s/t5Nz4ycs7eFA6Nk
 How to start :
 1) Open the bot with admin (run as administrator)
 2) Open up the game first (mu client)
-3) Disable chat and whispers until your chat settings look like this : ![image](https://github.com/frostbear12/elite_mu_bot/assets/84524648/cb4872db-9efe-4279-8ac2-7e97926e4ad1)
-4) Open mu client settings and configure in options : Resolution, Font Size so they match the picture : ![image](https://github.com/frostbear12/elite_mu_bot/assets/84524648/d226dbeb-89e2-4340-8494-dd8bf3c1c73f)
+3) Disable chat and whispers until your chat settings look like this : ![image](https://github.com/frostbear12/botix/assets/84524648/a8ec79ec-ba2c-4291-b514-9a6c6e72d0b0)
+4) Open mu client settings and configure in options : Resolution, Font Size so they match the picture : ![image](https://github.com/frostbear12/botix/assets/84524648/48c78ea3-8930-4337-8b4f-603a71aa27b7)
+
 5) In the bot window:
   * Select Class from dropdown
   * Enter your grand reset count
