@@ -8,6 +8,7 @@
 
 # Check the coordinates of the dungeon2
 	- if the coordinates are 231, then stop faster
+-fixed
 
 # Make a check that the "C" window  is open
 - fixed

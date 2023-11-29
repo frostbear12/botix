@@ -40,7 +40,7 @@ def runDungeon(coordinateRegion, levelRegion):
         centerMouseAndWait()
 
         # 2. Move the mouse to location (441, 40)
-        win32api.SetCursorPos((441, 40))
+        win32api.SetCursorPos((441, 45))
 
         # 3. Wait 0.7 seconds
         time.sleep(0.7)
@@ -116,27 +116,16 @@ def runDungeon(coordinateRegion, levelRegion):
             # If the pattern is not found, return an indicator such as "Level not found"
             return "Level not found"
 
-    # def read_levels_from_screen(region):
-    #     # Take a screenshot of the specified region
-    #     screenshot = pyautogui.screenshot(region=region)
-
-    #     # Preprocess the image for better OCR results
-    #     processed_image = preprocess_image(screenshot)
-
-    #     # Use Tesseract to do OCR on the image without any additional configurations
-    #     full_text = pytesseract.image_to_string(processed_image)
-
-    #     return full_text
 
         
     # Then, later in your code, you can call this function and print the result:
     def readLevels():
         level = read_levels_from_screen(levelRegion)
         if level and level.isdigit():  # Check if the result is a number and not None
-            print("Current Level:", level)
+            print("Current Level (dungeon level read):", level)
             return level
         else:
-            print("Level not found or not a number")
+            print("Level not found or not a number (dungeons level read)")
             return "0"  # Return "0" as a string if level is not found
         
 
@@ -149,7 +138,7 @@ def runDungeon(coordinateRegion, levelRegion):
 
     def send_warp_command():
         print("Sleep : 1 second")
-        time.sleep(1)
+        time.sleep(0.5)
 
         send_key_event(win32con.VK_RETURN)  # Press Enter
         time.sleep(0.5)
@@ -214,14 +203,14 @@ def runDungeon(coordinateRegion, levelRegion):
         click_and_hold(756, 590)
 
         # Move character until reaching target Y coordinate
-        while not y_coord in [113, 112, 110, 109, 108, 107, 106, 105]:
+        while not y_coord in [110, 109, 108, 107]:
             coordinates = read_coordinates_from_screen(coordinateRegion)
             print("Extracted coordinates during movement:", coordinates)
             if coordinates != "Coordinates not found":
                 _, y_coord = coordinates
             else:
                 print("Waiting to reach target Y coordinate...")
-            time.sleep(0.5)
+            time.sleep(0.15)
 
         # Release click
         release_click()
@@ -233,21 +222,6 @@ def runDungeon(coordinateRegion, levelRegion):
             helperStarted = True
 
         print("Movement completed.")
-
-
-    def press_c_key_alternative():
-        # Move mouse, click, and re-center as an alternative to pressing 'C'
-        print("Attempting alternative method for 'C' press...")
-        win32api.SetCursorPos((1600, 1055))  # Move mouse to specific coordinates
-        time.sleep(0.5)  # Wait
-
-        # Perform click
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 1600, 1055, 0, 0)
-        time.sleep(0.1)  # Delay between mouse down and up for a click effect
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 1600, 1055, 0, 0)
-
-        time.sleep(0.5)  # Wait after click
-        centerMouseAndWait()  # Re-center the mouse
 
     def click_and_hold(x, y):
         win32api.SetCursorPos((x, y))
@@ -268,7 +242,7 @@ def runDungeon(coordinateRegion, levelRegion):
         
         if current_level == "0":
             print("Failed to read level. Attempting to open stat screen...")
-            if not open_stat_screen("DUNGEON TRACKER"):
+            if not open_stat_screen():
                 print("Failed to open stat screen. Retrying level read after delay.")
                 time.sleep(5)  # Delay before retrying
                 continue  # Skip the rest of this loop iteration

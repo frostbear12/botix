@@ -76,7 +76,7 @@ def waitForMarryTrack(levelRegion):
         centerMouseAndWait()
 
         # 2. Move the mouse to location (1088, 328)
-        win32api.SetCursorPos((441, 40))
+        win32api.SetCursorPos((441, 42))
 
         # 3. Wait 0.7 seconds
         time.sleep(0.7)

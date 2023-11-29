@@ -8,8 +8,12 @@ from Helpers.checkIfStats import open_stat_screen  # Import the function
 from Helpers.checkIfEnter import open_enter_window_if_closed, is_enter_window_open
 
 
+
+
 def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
+
     def move_and_click(x, y):
+
         time.sleep(0.5)
         win32api.SetCursorPos((x, y))
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
@@ -36,8 +40,6 @@ def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
             time.sleep(0.05)  # Delay between each key press
 
     def add_stats(stat_type, points):
-
-
         # Create command
         command = f"/{stat_type} {points}" if stat_type != "com" else f"/cmd {points}"
 
@@ -92,7 +94,7 @@ def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
             print(f"Attempt {attempts + 1}/{max_attempts} failed to read resets. Retrying...")
             attempts += 1
 
-        return "Resets not found"  # Return this if all attempts fail
+        return "Exit early"
 
     def calculate_available_stats(resets, selectedClass, grandResets):
         multiplier = 800 if selectedClass in ["BK", "SM", "ELF", "SUM"] else 900
@@ -150,26 +152,28 @@ def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
             stat_value = int(availableStats / 4)  # Divide the available stats evenly
             return {"str": stat_value, "vit": stat_value, "agi": stat_value, "ene": stat_value}
    
-    time.sleep(2)
+    time.sleep(1)
+
+
 
     # Move mouse and click at specified position before starting the reset checks
     move_and_click(1600, 1055) # stats button
-    
 
     # Wait 2 seconds
-    time.sleep(2)
+    time.sleep(1)
+    
 
     # Attempt to open the stat screen
-    if not open_stat_screen("STAT ADDER"):
+    if not open_stat_screen():
         print("Failed to open stat screen on first attempt. Proceeding with a delay...")
-        time.sleep(10)  # Wait for some time before proceeding, hoping the screen opens
-
-
+        time.sleep(5)  # Wait for some time before proceeding, hoping the screen opens
 
 
     # Use the read_resets_with_retries function
     resets = read_resets_with_retries(resetRegion)
     if isinstance(resets, int):
+        print("got this far 10")
+
         availableStats = calculate_available_stats(resets, selectedClassFromBox, grandResets)
         statDistribution = distribute_stats(availableStats, selectedClassFromBox)
         print(f"Resets: {resets}, Available Stats: {availableStats}, Distribution: {statDistribution}")
@@ -188,5 +192,6 @@ def run_stat_adder(selectedClassFromBox, grandResets, resetRegion):
     # Move mouse and click again after adding stats
     move_and_click(1600, 1055)
 
+
     print("Script completed. Pausing for 3 seconds...")
-    time.sleep(3)
+    time.sleep(1)

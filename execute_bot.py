@@ -11,6 +11,7 @@ import signal
 import pygame  # Import pygame
 import pytesseract
 from PIL import Image, ImageTk, ImageDraw
+from tkinter import Tk, Canvas, Toplevel
 
 
 
@@ -22,13 +23,20 @@ from marryTrack import waitForMarryTrack
 from checkForReset import checkIfRes
 from addStats import run_stat_adder
 
-# Global variables
-script_running = False
-paused = False
-script_thread = None
 
-pause_event = threading.Event()
-pause_event.set()  # Initially set the event to allow the script to run
+script_thread = None
+script_running = False
+
+def start_script():
+    global script_thread
+    if script_thread is None or not script_thread.is_alive():
+        script_thread = threading.Thread(target=run_scripts)
+        script_thread.daemon = True  # Makes the thread terminate with the main program
+        script_thread.start()
+        update_log("Script started.")
+    else:
+        update_log("Script is already running.")
+
 
 # Initialize pygame mixer
 pygame.mixer.init()
@@ -49,7 +57,6 @@ def resource_path(relative_path):
         # Base path for normal execution
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
-
 
 
 def on_drag_start(event):
@@ -82,12 +89,14 @@ def on_drag_motion(event):
     elif overlay == overlay2:
         levelCoords = (new_x, new_y, levelCoords[2], levelCoords[3])
 
-def create_overlay(root, region, color="green", border_width=5, handle_size=10):
+def create_overlay(root, region, editable=True, color="green", border_width=5, handle_size=10):
     overlay = tk.Toplevel(root)
     overlay.attributes("-topmost", True)
     overlay.attributes("-transparentcolor", "white")
     overlay.overrideredirect(True)
-    overlay.configure(cursor="fleur")
+    
+    if editable :
+        overlay.configure(cursor="fleur")
 
     # Create a Canvas for the overlay
     canvas = tk.Canvas(overlay, bg="white", width=region[2], height=region[3], highlightthickness=0)
@@ -100,14 +109,17 @@ def create_overlay(root, region, color="green", border_width=5, handle_size=10):
     canvas.create_line(0, region[3], region[2], region[3], fill=color, width=border_width)
 
     # Create a draggable handle
-    canvas.create_rectangle(0, 0, handle_size, handle_size, fill=color)
+    if editable :
+        canvas.create_rectangle(0, 0, handle_size, handle_size, fill=color)
+
 
     # Position the overlay
     overlay.geometry(f"+{region[0]}+{region[1]}")
 
-    # Bind mouse events for dragging
-    canvas.bind("<Button-1>", on_drag_start)
-    canvas.bind("<B1-Motion>", on_drag_motion)
+    if editable :
+        # Bind mouse events for dragging
+        canvas.bind("<Button-1>", on_drag_start)
+        canvas.bind("<B1-Motion>", on_drag_motion)
 
     return overlay
 
@@ -164,25 +176,12 @@ def start_move_window():
 
     threading.Thread(target=update_messages, daemon=True).start()
 
-
 # GUI Functions
 def update_log(message):
     log_text.config(state='normal')
     log_text.insert(tk.END, message + '\n')
     log_text.see(tk.END)
     log_text.config(state='disabled')
-
-def safe_exit_sequence():
-    print("Executing safe exit sequence and restarting...")
-    send_key_event(win32con.VK_RETURN)  # Press Enter
-    time.sleep(0.1)
-    send_key_event(win32con.VK_RETURN, key_up=True)  # Release Enter
-    send_keys("/warp lorencia")
-    send_key_event(win32con.VK_RETURN)  # Press Enter
-    time.sleep(0.1)
-    send_key_event(win32con.VK_RETURN, key_up=True)  # Release Enter
-    time.sleep(3)  # Wait for the warp action to complete
-
 
 def send_key_event(key_code, key_up=False):
     win32api.keybd_event(key_code, 0, win32con.KEYEVENTF_KEYUP if key_up else 0, 0)
@@ -193,62 +192,56 @@ def send_keys(string):
         vk_code = win32api.VkKeyScan(char) & 0xFF
         send_key_event(vk_code)
         time.sleep(0.05)
-
-
         
 def run_scripts():
-    global script_running
-
-    # 3-second countdown
-    for i in range(3, 0, -1):
-        if not script_running:
-            break
-        update_log(f"Starting in {i}...")
-        time.sleep(1)
-
-    # Main script loop
-    while script_running:
+    # Infinite loop to continuously run the script
+    while True:
         current_phase = selected_phase.get()
-
         selectedClassFromBox = selected_class.get()
         userInputGrandResets = grand_resets_entry.get()
+
         try:
             grandResets = int(userInputGrandResets)
         except ValueError:
             grandResets = 0
 
+        # Start from the selected phase and loop through all phases
         if current_phase in ["Start", "Stat Adder"]:
+            update_log('Running Stat Adder Phase')
             run_stat_adder(selectedClassFromBox, grandResets, levelCoords)
+            current_phase = "Run Lorencia"
 
-        if current_phase in ["Start", "Stat Adder", "Run Lorencia"]:
+        if current_phase in ["Run Lorencia"]:
+            update_log('Running Lorencia Phase')
             runBot(locationCoords)
+            current_phase = "Run Dungeon"
 
-        if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon"]:
+        if current_phase in ["Run Dungeon"]:
+            update_log('Running Dungeon Phase')
             runDungeon(locationCoords, levelCoords)
+            current_phase = "Marry Track"
 
-        if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon", "Marry Track"]:
+        if current_phase in ["Marry Track"]:
+            update_log('Running Marry Track Phase')
             waitForMarryTrack(levelCoords)
+            current_phase = "Check Reset"
 
-        if current_phase in ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon", "Marry Track", "Check Reset"]:
+        if current_phase in ["Check Reset"]:
+            update_log('Running Check Reset Phase')
             checkIfRes(levelCoords)
+            current_phase = "Start"  # After finishing the last phase, start from the beginning
 
         # Small delay to prevent CPU overuse, adjust as needed
         time.sleep(0.1)
 
+        # Check if GUI is still running; if not, break from the loop
+        try:
+            root.update_idletasks()
+            root.update()
+        except tk.TclError:
+            break  # Break the loop if the root window is closed
 
 
-def start_stop_script():
-    global script_running, script_thread
-    if script_running:
-        script_running = False
-        if script_thread and script_thread.is_alive():
-            script_thread.join()
-        start_stop_button.config(text="Start Script")
-    else:
-        script_running = True
-        script_thread = threading.Thread(target=run_scripts)
-        script_thread.start()
-        start_stop_button.config(text="Stop Script")
 
 
 def check_running():
@@ -265,30 +258,8 @@ def release_all_mouse_clicks():
     win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
     update_log("All mouse clicks released.")
 
-def on_hotkey_pressed():
-    global script_running
-    update_log("Hotkey pressed, attempting to stop script gracefully...")
-    script_running = False
-    if script_thread.is_alive():
-        script_thread.join(timeout=1)  # Wait for max 1 seconds for the script thread to finish
-
-    if script_thread.is_alive():
-        # If the script is still running after 3 seconds, force stop
-        update_log("Failed to stop script gracefully, forcing stop...")
-        os.kill(os.getpid(), signal.SIGTERM)
-    else:
-        update_log("Script stopped successfully.")
-        release_all_mouse_clicks()  # Release mouse clicks when the script is stopped by the hotkey
-
-keyboard.add_hotkey('*', on_hotkey_pressed)
 
 
-def on_closing():
-    global script_running, script_thread
-    script_running = False
-    if script_thread and script_thread.is_alive():
-        script_thread.join()  # Ensure the thread is stopped before destroying the root
-    root.destroy()
 
 
 
@@ -338,7 +309,6 @@ phases = ["Start", "Stat Adder", "Run Lorencia", "Run Dungeon", "Marry Track", "
 # Frame for the phase selection dropdown
 phase_selection_frame = tk.Frame(root)
 phase_selection_frame.pack(pady=5)  # Adjust padding as needed
-
 # Label for the phase selection dropdown
 phase_label = tk.Label(phase_selection_frame, text="Select Phase:")
 phase_label.pack(side=tk.LEFT, padx=5)  # Adjust side and padding as needed
@@ -354,15 +324,16 @@ phase_dropdown.pack(side=tk.LEFT)
 button_frame = tk.Frame(root)
 button_frame.pack(pady=10)  # Add some vertical padding
 
+# Add Start Script Button to the GUI
+start_script_button = tk.Button(button_frame, text="Start Script", command=start_script)
+start_script_button.pack(side=tk.LEFT, padx=5)
+
 # Center Window Button
 center_window_button = tk.Button(button_frame, text="Center Window", command=start_move_window)
 center_window_button.pack(side=tk.LEFT, padx=5)
 
-
-# Start/Stop Button
-start_stop_button = tk.Button(button_frame, text="Start Script", command=start_stop_script)
-start_stop_button.pack(side=tk.LEFT, padx=5)
-
+def on_closing():
+    os._exit(0)
 
 # Log Text Area
 log_text = scrolledtext.ScrolledText(root, state='disabled', height=10)
@@ -381,7 +352,14 @@ level_label.pack()
 overlay1 = create_overlay(root, locationCoords)
 overlay2 = create_overlay(root, levelCoords)
 
-# Setup the closing protocol
-root.protocol("WM_DELETE_WINDOW", on_closing)
+# Dont place rectangles
+rec1coords = (0, 850, 880, 150)
+rectangleOverlay1 = create_overlay(root, rec1coords, False, "red")
+rec2coords = (1388, 900, 500, 80)
+rectangleOverlay1 = create_overlay(root, rec2coords, False, "red")
+rec3coords = (750, 200, 500, 600)
+rectangleOverlay1 = create_overlay(root, rec3coords, False, "red")
 
+
+root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()

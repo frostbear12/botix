@@ -2,13 +2,25 @@ import pyautogui
 import time
 import win32api
 import win32con
+import os
+import sys
+
+def resource_path(relative_path):
+    """ Get the correct path for resources both for development and after compiling. """
+    try:
+        base_path = sys._MEIPASS  # Compiled path
+    except Exception:
+        base_path = os.path.abspath(".")  # Current directory
+
+    return os.path.join(base_path, relative_path)
+
+# Correct path to the image
+enter_image_path = resource_path('Helpers/Images/enterPressed.png')
 
 def is_enter_window_open(confidence_level=0.8):
     try:
-        # Default image path for the 'Enter' input window
-        image_path = 'Helpers/Images/enterPressed.png'
 
-        location = pyautogui.locateOnScreen(image_path, confidence=confidence_level)
+        location = pyautogui.locateOnScreen(enter_image_path, confidence=confidence_level)
         return location is not None
     except:
         return False
